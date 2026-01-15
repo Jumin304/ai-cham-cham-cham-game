@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 참참참 게임 (최종)</title>
+    <style>
+        body {
+            font-family: 'Jua', sans-serif;
+            text-align: center;
+            background-color: #f0f8ff;
+            color: #333;
+        }
+        h1 { margin-top: 20px; font-size: 3rem; margin-bottom: 5px; }
+        
+        /* 추가된 안내 문구 스타일 */
+        .sub-text {
+            font-size: 1.5rem;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        #webcam-container {
+            margin: 0 auto;
+            width: 300px;
+            height: 300px;
+            border: 5px solid #333;
+            border-radius: 20px;
+            overflow: hidden;
+            background-color: #eee;
+        }
+        canvas { width: 100%; height: 100%; object-fit: cover; }
+        
+        #message-area {
+            font-size: 3rem; 
+            font-weight: bold;
+            height: 80px;
+            margin: 20px 0;
+            color: #ff4500;
+        }
+
+        #result-area {
+            font-size: 2.5rem;
+            margin: 10px 0;
+            height: 60px;
+        }
+
+        button {
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            transition: 0.3s;
+        }
+        button:hover { background-color: #45a049; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        .score-board { font-size: 1.2rem; margin-top: 20px; }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <h1>🤖 AI 참참참 대결</h1>
+    <p class="sub-text">왼쪽, 오른쪽 중 하나를 선택하세요!</p>
+
+    <div id="webcam-container"></div>
+    
+    <div id="message-area">준비 완료!</div>
+    <div id="result-area"></div>
+
+    <button type="button" onclick="startGame()" id="start-btn" disabled>로딩 중...</button>
+
+    <div class="score-board">
+        내 현재 상태: <span id="current-status" style="font-weight:bold; color:blue;">-</span>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+    <script type="text/javascript">
+        // ★ 모델 URL
+        const URL = "https://teachablemachine.withgoogle.com/models/rKgWIyJMP/";
+
+        let model, webcam, maxPredictions;
+        let isGameRunning = false;
+        let currentPrediction = "Center"; 
+
+        // 게임 초기화
+        async function init() {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            const flip = true; 
+            webcam = new tmImage.Webcam(300, 300, flip); 
+            await webcam.setup(); 
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            
+            const btn = document.getElementById("start-btn");
+            btn.innerText = "게임 시작!";
+            btn.disabled = false;
+        }
+
+        async function loop() {
+            webcam.update(); 
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+
+        async function predict() {
+            const prediction = await model.predict(webcam.canvas);
+            
+            let maxProb = 0;
+            let bestClass = "";
+
+            for (let i = 0; i < maxPredictions; i++) {
+                if (prediction[i].probability > maxProb) {
+                    maxProb = prediction[i].probability;
+                    bestClass = prediction[i].className;
+                }
+            }
+
+            if (maxProb > 0.8) {
+                currentPrediction = bestClass;
+                let displayStatus = currentPrediction;
+                if(currentPrediction === "Center") displayStatus = "정면";
+                if(currentPrediction === "Left") displayStatus = "왼쪽";
+                if(currentPrediction === "Right") displayStatus = "오른쪽";
+                
+                document.getElementById("current-status").innerText = displayStatus;
+            }
+        }
+
+        // --- 게임 로직 ---
+        function startGame() {
+            if(isGameRunning) return;
+            isGameRunning = true;
+            document.getElementById("start-btn").disabled = true;
+            document.getElementById("result-area").innerText = "";
+            
+            const messageEl = document.getElementById("message-area");
+
+            // 구호 시작: 참! (1초) -> 참! (2초) -> 참!(3초/결과)
+            
+            messageEl.innerText = "참!";
+            
+            setTimeout(() => {
+                messageEl.innerText = "참! 참!";
+            }, 800); 
+
+            setTimeout(() => {
+                messageEl.innerText = "참! 참! 참!";
+                playChamChamCham();
+            }, 1600); 
+        }
+
+        function playChamChamCham() {
+            const messageEl = document.getElementById("message-area");
+            const resultEl = document.getElementById("result-area");
+
+            // 컴퓨터의 선택 (0: Left, 1: Right)
+            const randomPick = Math.random() < 0.5 ? "Left" : "Right";
+            const computerDirect = (randomPick === "Left") ? "👈 컴퓨터: 왼쪽!" : "👉 컴퓨터: 오른쪽!";
+            
+            setTimeout(() => {
+                let userMove = currentPrediction; 
+
+                messageEl.innerText = computerDirect;
+
+                // 승패 로직
+                if (userMove === "Center") {
+                    resultEl.innerText = "⚠️ 무효! (고개 안돌림)";
+                    resultEl.style.color = "gray";
+                } else if (userMove === randomPick) {
+                    // 걸림 (패배)
+                    resultEl.innerText = "😭 딱 걸렸어!";
+                    resultEl.style.color = "red";
+                } else {
+                    // 회피 (승리)
+                    resultEl.innerText = "🎉 통과!";
+                    resultEl.style.color = "blue";
+                }
+
+                isGameRunning = false;
+                document.getElementById("start-btn").disabled = false;
+                document.getElementById("start-btn").innerText = "다시 하기";
+
+            }, 300); 
+        }
+
+        init();
+    </script>
+</body>
+</html>
